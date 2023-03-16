@@ -253,7 +253,7 @@ class Solver(object):
     	#Modify the default grid
     	#----------------------------------------------------------------------
         n = self.params['n'] # toroidal mode number, <0 because of how vars are expanded in n, m
-        RationalM = 4
+        RationalM = 1
         Sidebands = 5
         stab.grid.Mmin = RationalM-Sidebands
         stab.grid.Mmax = RationalM+Sidebands
