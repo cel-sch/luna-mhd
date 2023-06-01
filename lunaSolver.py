@@ -293,7 +293,7 @@ class Solver(object):
         print ('   v0/vA = %.5f'%(V0_Va))
         print ('   B0    = %.5f / %.5f [T]'%(eq.B0, self.params['B0']))
         print ('   R0    = %.5f / %.5f [m]'%(eq.R0, self.params['R0']))
-        print ('   P0    = %.5f / %.5f [Pa]'%(eq.P0, (self.profParams['beta0']*self.params['B0']**2/(2.*mu0)))) #P = beta0*B0**2.*n_*T/(2.*mu0*n0)
+        print ('   P0    = %.5f / %.5f [Pa]'%(eq.P0, (self.profParams['beta0']*self.params['B0']**2/(2.*eq.mu0)))) #P = beta0*B0**2.*n_*T/(2.*mu0*n0)
         print ('   beta0 = %.5f / %.5f %%'%(2.*eq.mu0*eq.P0/eq.B0**2., self.profParams['beta0']))
     	#----------------------------------------------------------------------
         
@@ -316,12 +316,12 @@ class Solver(object):
                 #EV_guess = 1.0E-3 + (1.0j)*abs(n)*eq.Omega[idx_rs]
             
             print ('EV guess: %.5E + i(%.5E)'%(EV_guess.real,EV_guess.imag))
-            stab.Solve(EV_guess,N_EV=1)
-    		# stab.Solve(self,EV_guess=None,N_EV=1,maxiter=1000, which='LM', Values_txt=None, ValuesID=0., Vectors_h5=None, grid=None):
+            stab.Solve(EV_guess,N_EV=1, EVectorsFile=f'{self.out_filepath}/{self.VMEClabel}_{labelnr}.hdf5')
+    		# stab.Solve(self,EV_guess=None,N_EV=1,maxiter=1000, which='LM', Values_txt=None, ValuesID=0., EVectorsFile=None, grid=None):
             print ('Solution time: %.4E with N = %i' %(time.time()-t0, stab.grid.N))
     		#------------------------------------------------------------------
     
-            EV = max(stab.Solution.vals)
+            EV = max(stab.Solution.vals) # there's only one element in this
     		
             print ('Most unstable eigenvalue')
             print ('(Gamma/OmegaA) = %.5E + i(%.5E)'%(EV.real,EV.imag))
@@ -329,7 +329,7 @@ class Solver(object):
             if self.initialisers['ToPlot']:
                 eq.plot(stab.grid, show=False)
                 stab.Solution.PlotEigenValues()
-                stab.Solution.PlotEigenVectors(eq, PlotDerivatives=True)
+                stab.Solution.PlotEigenVectors(eq, PlotDerivatives=False)
     		#------------------------------------------------------------------
             
         return EV, V0_Va, EV_guess

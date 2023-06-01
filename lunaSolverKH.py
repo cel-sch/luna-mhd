@@ -23,8 +23,8 @@ class Solver(object):
     def __init__(self):
         profiles = ['density_T', 'density_P', 'temperature', 'rotation']
         self.params = {'profile':'density_T','R0':10., 'B0':1., 'r0':1., 'D':0., 'El':0., 'Tr':0., 'n':-1, 'RationalM':1,'MPOL':15, 'NTOR':0}
-        self.profParams = {'rstep':0.5, 'drstep':0.15, 'n0':2.5E21, 'nu_n':2, 'mach':0.0, 'beta0':0.05, 'qr':1., 'rs':0.3, 'q0':0.938, 'qs':None, 'nu_q':2.}
-        
+        self.profParams = {'rstep':0.5, 'drstep':0.15, 'n0':1, 'nu_n':2, 'mach':0.0, 'beta0':0.05, 'qr':1., 'rs':0.3, 'q0':0.938, 'qs':None, 'nu_q':2.}
+
         self.initialisers = {'RunVMEC': True, 'RunStab': True, 'ToPlot': False, 'Peakedness':True}
         
         self.in_filepath = 'Input'
@@ -382,10 +382,10 @@ class Solver(object):
         print ('Parameters at the magnetic axis:')
         print ('   M0    = %.5f'%(np.sqrt(eq.M02)))
         print ('   v0/vA = %.5f'%(V0_Va))
-        print ('   B0    = %.5f'%(eq.B0))
-        print ('   R0    = %.5f'%(eq.R0))
-        print ('   P0    = %.5f'%(eq.P0))
-        print ('   beta0 = %.5f'%(2.*eq.mu0*eq.P0/eq.B0**2.))
+        print ('   B0    = %.5f / %.5f [T]'%(eq.B0, self.params['B0']))
+        print ('   R0    = %.5f / %.5f [m]'%(eq.R0, self.params['R0']))
+        print ('   P0    = %.5f / %.5f [Pa]'%(eq.P0, (self.profParams['beta0']*self.params['B0']**2/(2.*eq.mu0)))) #P = beta0*B0**2.*n_*T/(2.*mu0*n0)
+        print ('   beta0 = %.5f / %.5f %%'%(2.*eq.mu0*eq.P0/eq.B0**2., self.profParams['beta0']))
     	#----------------------------------------------------------------------
         
         if True:
@@ -399,7 +399,8 @@ class Solver(object):
             t0 = time.time()
             if EV_guess == None:
                 idx_rstep = find_nearest(stab.grid.S, self.profParams['rstep'])
-                EV_guess = 1.0E-2 + (1.0j)*abs(n)*eq.Omega[idx_rstep]
+                #EV_guess = 1.0E-1 + (1.0j)*abs(n)*eq.Omega[idx_rstep]
+                EV_guess = 1.0E-1 + (1.0j)*abs(n)*eq.Omega[0]
                 #EV_guess = 1.0 + 1.0j
             #elif EV_guess == 'bad': #EV_guess.real < 1.0E-07
                 #idx_rstep = find_nearest(stab.grid.S, self.profParams['rstep'])
@@ -441,11 +442,12 @@ class Solver(object):
             if self.initialisers['ToPlot']:
                 eq.plot(stab.grid, show=False)
                 stab.Solution.PlotEigenValues()
-                stab.Solution.PlotEigenVectors(eq, PlotDerivatives=True)
+                stab.Solution.PlotEigenVectors(eq, PlotDerivatives=False)
     		#------------------------------------------------------------------
             
-        
-        return EV, V0_Va, pkedness
+
+        return EV, V0_Va, EV_guess
+      
     
     def doScan(self):
         
@@ -559,6 +561,7 @@ class Solver(object):
             output = self.doSweep()
             ws = output[0]
             vs = output[1]
+            wsguess = output[2]
             
             scanParam = None
             scanVals = None
@@ -573,6 +576,7 @@ class Solver(object):
             output = self.doScan()
             ws = output[0]
             vs = output[1]
+            wsguess = output[2]
             
             scanParam = key
             scanVals = val
@@ -593,7 +597,7 @@ class Solver(object):
         csv_columns.insert(0,'ID')
         csv_columns.insert(1, 'filepath')
         
-        np.savez(fOutput, eigenvals = ws, v0vas = vs, scanvals = scanVals, scanparams = scanParam, params = self.params, profparams = self.profParams, scanlabel = scanLabel)
+        np.savez(fOutput, eigenvals = ws, v0vas = vs, eigenguesses = wsguess, scanvals = scanVals, scanparams = scanParam, params = self.params, profparams = self.profParams, scanlabel = scanLabel)
         
         if os.path.isfile(outputGrid): # checks whether the csv file of outputs exists already
             # check whether there are new parameters being saved in the output file --> new headers need to be written

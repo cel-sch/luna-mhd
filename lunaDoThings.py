@@ -5,7 +5,7 @@ Created on Mon Feb 13 13:11:19 2023
 @author: celin
 """
 
-import lunaSolver as lunsol
+import lunaSolverKH as lunsol
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -13,15 +13,17 @@ import numpy as np
 
 sol = lunsol.Solver()
 
-sol.out_filepath = 'Output/IK'
-sol.in_filename = 'input_IK.in'
+sol.out_filepath = 'Output/KH'
+sol.in_filename = 'input_KH.in'
 
 ### CALCULATE NEW EIGENVALUES OR NOT? ###
-#sol.initialisers['RunVMEC'] = True
+sol.initialisers['RunVMEC'] = True
+if sol.initialisers['RunVMEC'] == False:
+    sol.VMEClabel = '0x9e184'
 
 runVENUS = True
 if runVENUS == False:
-    out_filename = '0xf3cff5.npz'
+    out_filename = '0x9e184.npz'
 else:
     out_filename = 'blah.npz'    
 out_file = f'{sol.out_filepath}/{out_filename}'
@@ -40,20 +42,20 @@ if plotEigs:
     ws = data['eigenvals']
     gams = [i.real for i in ws]
     if data['scanparams'] == 'mach':
-        x = data['v0vas']
-        xlabel = 'v0/va'
-        """ # for kh-like instability
+        #x = data['v0vas']
+        #xlabel = 'v0/va'
+        # for kh-like instability
         profparams = data['profparams'].item()
         params = data['params'].item()
         
         eps_a = params['r0']/params['R0']
-        beta = [i/eps_a**2 for i in profparams['beta0']]
+        #beta = [i/eps_a**2 for i in profparams['beta0']]
+        beta = profparams['beta0']/eps_a**2
         mach = data['scanvals']
-        Omega = [np.sqrt(i*j) for i, j in zip(mach, beta)]
+        Omega = [i*np.sqrt(beta) for i in mach]
         
         x = Omega
-        xlabel = data['scanparams']
-        """
+        xlabel = 'Omega'
     else:
         x = data['scanvals']
         xlabel = data['scanparams']
@@ -70,7 +72,8 @@ if plotEigs:
     if runVENUS == False:
         ax.set_title(f'{out_filename}'.replace('.npz',''))
     plt.grid()
-    plt.legend()
+    if plotEigGuess:
+        plt.legend()
     plt.show()
     
 
