@@ -16,11 +16,12 @@ from VenusMHDpy import SATIRE2SFL
 from VenusMHDpy import Equilibriumh5
 from VenusMHDpy import Stability
 from VenusMHDpy import VMECInput
+from VenusMHDpy.library import find_nearest
 
 class Solver(object):
     def __init__(self):
-        self.params = {'R0':10., 'B0':1., 'r0':1., 'D':0., 'El':0., 'Tr':0., 'n':-1, 'MPOL':15, 'NTOR':0}
-        self.profParams = {'n0':2.5E21, 'mach':0.0, 'beta0':0.05, 'qr':1., 'rs':0.3, 'q0':0.938}
+        self.params = {'R0':10., 'B0':1., 'r0':1., 'D':0., 'El':0., 'Tr':0., 'n':-1, 'RationalM':1, 'MPOL':15, 'NTOR':0}
+        self.profParams = {'n0':1., 'mach':0.0, 'beta0':0.05, 'qr':1., 'rs':0.3, 'q0':0.868}
         self.profShapes = {'nu_n':2., 'nu_omega':2., 'nu_q':2.}
         
         self.initialisers = {'RunVMEC': True, 'RunStab': True, 'ToPlot': False}
@@ -130,6 +131,7 @@ class Solver(object):
         n0 = self.profParams['n0']
         nu_n = self.profShapes['nu_n']
         n_ = n0*(1.-s**nu_n)
+        #n_ = np.ones_like(s)
         #======================================================================
         
         #Temperature and rotation profiles. 
@@ -140,17 +142,21 @@ class Solver(object):
         #Set the temperature equal to the pressure, which makes the density constant
         #AT = np.polyfit(s2,P/P0,11)[::-1]
         #Set the temperature constant, which makes the density equal to the pressure
-        #T = np.ones_like(s)
+        T = np.ones_like(s)
         #AT = [1]
+        #T = 1. - s2
         
-        T = 0.5*(1.+np.cos(np.pi*s))+0.01
+    
         T = T/T[0]
-        #C.Flow.AT = AT
         AT = np.polyfit(s2,T,11)[::-1] # SET TEMPERATURE PROFILE
+        
+        C.Flow.AT = AT
         #----------------------------------------------------------------------
         mach = self.profParams['mach']
         nu_omega = self.profShapes['nu_omega']
-        Omega = 1.-s**nu_omega
+        #Omega = 1.-s**nu_omega
+        Omega = np.ones_like(s)
+        Omega = Omega/Omega[0]
         AH = np.polyfit(s2,Omega,11)[::-1]
         C.Flow.AH = AH # SET FLOW PROFILE
         C.Flow.bcrit = mach # SET FLOW MAGNITUDE
@@ -159,8 +165,9 @@ class Solver(object):
         #Pressure Profile
         #======================================================================
         beta0 = self.profParams['beta0']
-        P = beta0*B0**2.*n_*T/(2.*mu0*n0)
+        P = beta0*B0**2.*(n_/n0)*T/(2.*mu0)
         
+        #PVMEC = P*np.exp(-0.5*mach**2*Omega**2./(T+0.05)) # for T = 1 - s2 (flat density)
         PVMEC = P*np.exp(-0.5*mach**2*Omega**2./T)
         
         AM = np.polyfit(s2,PVMEC,11)[::-1]
@@ -189,12 +196,12 @@ class Solver(object):
         C.Current.AI = AI
         #======================================================================
         
-        #Change some control parameters
+        #Change some control parameters, currently commented for speed
         #======================================================================
-        C.Control.PREC2D_THRESHOLD = 1.0E-13 
-        C.Control.NITER_ARRAY = [1999, 3999, 3999, 3999, 8999, 8999, 8999, 8999, 8999, 25999, 39999, 99999, 129999]
-        C.Control.NS_ARRAY    = [25, 73, 211, 321, 435, 449, 463, 475, 481, 483, 485, 487, 489]
-        C.Control.FTOL_ARRAY  = [1.0e-09, 1.0e-09, 5.0e-10, 5.0e-10, 5.0e-10, 1.0e-10, 5.0e-11, 5.0e-11, 5.0e-11, 5.0e-11, 1.0e-11, 1.0e-11, 5.0E-12]
+        #C.Control.PREC2D_THRESHOLD = 1.0E-13 
+        #C.Control.NITER_ARRAY = [1999, 3999, 3999, 3999, 8999, 8999, 8999, 8999, 8999, 25999, 39999, 99999, 129999]
+        #C.Control.NS_ARRAY    = [25, 73, 211, 321, 435, 449, 463, 475, 481, 483, 485, 487, 489]
+        #C.Control.FTOL_ARRAY  = [1.0e-09, 1.0e-09, 5.0e-10, 5.0e-10, 5.0e-10, 1.0e-10, 5.0e-11, 5.0e-11, 5.0e-11, 5.0e-11, 1.0e-11, 1.0e-11, 5.0E-12]
         #======================================================================
         
         #Run VMEC Fixed boundary VMEC
@@ -240,8 +247,8 @@ class Solver(object):
             values by picking 1 specific VMEC input file.
         """
         
-     #Read equilibrium from VMEC output file and transform it into SFL
-        #self.label_FIXED = f'{self.VMEClabel}_{labelnr}'
+        #Read equilibrium from VMEC output file and transform it into SFL
+        self.label_FIXED = f'{self.VMEClabel}_{labelnr}'
         eq = SATIRE2SFL.SATIRE2SFL(f'VMEC/{self.VMEClabel}/wout/wout_'+self.label_FIXED+'.nc')
         eq.Writeh5('eq.'+self.label_FIXED+'.h5')
         os.system('mv eq.'+self.label_FIXED+'.h5 eqFiles')
@@ -253,16 +260,16 @@ class Solver(object):
     	#Modify the default grid
     	#----------------------------------------------------------------------
         n = self.params['n'] # toroidal mode number, <0 because of how vars are expanded in n, m
-        RationalM = 1
+        RationalM = self.params['RationalM'] # default 1
         Sidebands = 5
         stab.grid.Mmin = RationalM-Sidebands
         stab.grid.Mmax = RationalM+Sidebands
         stab.grid.Ntheta = eq.R.shape[0]
     
-        stab.grid.N = 100
-        stab.grid.bunching = True
-        stab.grid.bunchingQValues = [1.0,1.1, 1.2]
-        stab.grid.bunchingAmplitudes = [5.,5.,5.]
+        stab.grid.N = eq.R.shape[1]-2
+        stab.grid.bunching = False
+        stab.grid.bunchingQValues = [1.0]
+        stab.grid.bunchingAmplitudes = [5.,5.,5.,5.]
         stab.grid.bunchingSigma = [0.02,0.02,0.02]
         
     	#Build grid. If bunching with q values, then equilibrium quantities (radial grid s and safety factor) are required.
@@ -274,6 +281,8 @@ class Solver(object):
         eq.ChangeGrid(stab.grid.S)
         eq.Normalise()
         eq.BuildInGrid(stab.grid)
+        
+        eq.Omega = -eq.Omega
     	
     	#eq.plot(stab.grid, show=True)
     	
@@ -281,10 +290,10 @@ class Solver(object):
         print ('Parameters at the magnetic axis:')
         print ('   M0    = %.5f'%(np.sqrt(eq.M02)))
         print ('   v0/vA = %.5f'%(V0_Va))
-        print ('   B0    = %.5f'%(eq.B0))
-        print ('   R0    = %.5f'%(eq.R0))
-        print ('   P0    = %.5f'%(eq.P0))
-        print ('   beta0 = %.5f'%(2.*eq.mu0*eq.P0/eq.B0**2.))
+        print ('   B0    = %.5f / %.5f [T]'%(eq.B0, self.params['B0']))
+        print ('   R0    = %.5f / %.5f [m]'%(eq.R0, self.params['R0']))
+        print ('   P0    = %.5f / %.5f [Pa]'%(eq.P0, (self.profParams['beta0']*self.params['B0']**2/(2.*eq.mu0)))) #P = beta0*B0**2.*n_*T/(2.*mu0*n0)
+        print ('   beta0 = %.5f / %.5f %%'%(2.*eq.mu0*eq.P0/eq.B0**2., self.profParams['beta0']))
     	#----------------------------------------------------------------------
         
         if True:
@@ -296,15 +305,22 @@ class Solver(object):
     		# Solve
     		#------------------------------------------------------------------
             t0 = time.time()
-            if idx == 0:
-                EV_guess = 1.0E-1 + (1.0j)*abs(n)*(eq.M02*eq.mu0*eq.P0/eq.B0**2.)**0.5
+            
+            if EV_guess == None:
+                idx_rs = find_nearest(stab.grid.S, self.profParams['rs'])
+                EV_guess = 1.0E-2 + (1.0j)*abs(n)*eq.Omega[idx_rs]
+                
+            #elif EV_guess == 'bad': #EV_guess.real < 1.0E-07
+                #idx_rs = find_nearest(stab.grid.S, self.profParams['rs'])
+                #EV_guess = 1.0E-3 + (1.0j)*abs(n)*eq.Omega[idx_rs]
+            
             print ('EV guess: %.5E + i(%.5E)'%(EV_guess.real,EV_guess.imag))
-            stab.Solve(EV_guess,N_EV=1)
-    		# stab.Solve(self,EV_guess=None,N_EV=1,maxiter=1000, which='LM', Values_txt=None, ValuesID=0., Vectors_h5=None, grid=None):
+            stab.Solve(EV_guess,N_EV=1, EVectorsFile=f'{self.out_filepath}/{self.VMEClabel}_{labelnr}.hdf5')
+    		# stab.Solve(self,EV_guess=None,N_EV=1,maxiter=1000, which='LM', Values_txt=None, ValuesID=0., EVectorsFile=None, grid=None):
             print ('Solution time: %.4E with N = %i' %(time.time()-t0, stab.grid.N))
     		#------------------------------------------------------------------
     
-            EV = max(stab.Solution.vals)
+            EV = max(stab.Solution.vals) # there's only one element in this
     		
             print ('Most unstable eigenvalue')
             print ('(Gamma/OmegaA) = %.5E + i(%.5E)'%(EV.real,EV.imag))
@@ -312,23 +328,24 @@ class Solver(object):
             if self.initialisers['ToPlot']:
                 eq.plot(stab.grid, show=False)
                 stab.Solution.PlotEigenValues()
-                stab.Solution.PlotEigenVectors(eq, PlotDerivatives=True)
+                stab.Solution.PlotEigenVectors(eq, PlotDerivatives=False)
     		#------------------------------------------------------------------
             
-        return EV, V0_Va
+        return EV, V0_Va, EV_guess
     
     def doScan(self):
         
         if len(self.scanParams.keys()) == 1:
             key = self.scanParams.keys() # key being scanned over
             key = list(key)[0]
-            val = self.scanParams.values() # value range of key being scanned over
+            val = self.scanParams.values() # values of key being scanned over
             val = list(val)[0]
             
             ws = np.full(len(self.scanParams[key]), None)
+            wsguess = np.full(len(self.scanParams[key]), None)
             vs = np.full(len(self.scanParams[key]), None)
             
-            for idx, v in enumerate(val):
+            for idx, v in enumerate(val): #idx starts at 0
                 
                 # Update values of parameter being scanned over
                 if key in self.profParams:
@@ -342,34 +359,60 @@ class Solver(object):
                 self._buildVMEC(idx) # Sets label to e.g. 0xffffff and labelnr to 0, 1, 2..., produces a VMEC output file
                 
                 # Calculate growth rate
-                if idx > 0 :
-                    EV_guess = ws[idx-1]
+                
+                if idx >= 2:
+                    polycoeff = idx - 1
+                    if polycoeff > 10:
+                        polycoeff = 10
+                    
+                    guessReal = np.polyfit(np.asarray(val[:idx]),np.asarray([i.real for i in ws[:idx]]),polycoeff)
+                    guessImag = np.polyfit(np.asarray(val[:idx]),np.asarray([i.imag for i in ws[:idx]]),polycoeff)
+                    
+                    EV_guess = np.polyval(guessReal,v)*3 + 1j*np.polyval(guessImag,v)
+                    EV_guess += 1j*EV_guess.imag*1E-3
+                    
+                    if EV_guess.real < 1E-7:
+                        EV_guess = ws[idx-1]  
+                        EV_guess += 1E-3*(EV_guess.real + 1j*EV_guess.imag) # if the polyfit is struggling, take last calculated growth rate as guess for current one and move a little to the right
                 else:
                     EV_guess = None
+                """
+                if idx >= 1:
+                    EV_guess = ws[idx-1]"""
+                
                 
                 if self.initialisers['RunStab']:
-                    sol = self._runVENUS(EV_guess, idx)
+                    sol = self._runVENUS(EV_guess, idx, labelnr=idx) # REMINDER: PUT IDX BACK TO VARIABLE TO SET EV_GUESS TO LAST EV
                     w = sol[0]
                     v0va = sol[1]
+                    wguess = sol[2]
+                    
                     ws[idx] = w
                     vs[idx] = v0va
+                    wsguess[idx] = wguess
+                    
+                if w < 1E-7:
+                    print('Growth rate has gone to zero.')
+                    break
         
         else:
             print("Script currently only supports 1D scans. For 0D scans use doSweep.")
             
-        return np.array([ws, vs], dtype=object)
+        return np.array([ws, vs, wsguess], dtype=object)
     
     def doSweep(self):
         if len(self.scanParams.keys()) == 0:
              
             self._buildVMEC()
-            w = self._runVENUS()[0]
-            v0va = self._runVENUS()[1]
+            sol = self._runVENUS()
+            w = sol[0]
+            v0va = sol[1]
+            wguess = sol[2]
             
         else:
             print("Input file contains scan parameters. Use doScan.")
              
-        return np.array([w, v0va], dtype=object)
+        return np.array([w, v0va, wguess], dtype=object)
     
     ### BUILD OUTPUT ##########################################################
     def _buildOutputName(self):
@@ -401,6 +444,7 @@ class Solver(object):
             output = self.doSweep()
             ws = output[0]
             vs = output[1]
+            wsguess = output[2]
             
             scanParam = None
             scanVals = None
@@ -415,6 +459,7 @@ class Solver(object):
             output = self.doScan()
             ws = output[0]
             vs = output[1]
+            wsguess = output[2]
             
             scanParam = key
             scanVals = val
@@ -436,12 +481,22 @@ class Solver(object):
         csv_columns.insert(0,'ID')
         csv_columns.insert(1, 'filepath')
         
-        np.savez(fOutput, eigenvals = ws, v0vas = vs, scanvals = scanVals, scanparams = scanParam, params = self.params, profparams = self.profParams, profshapes = self.profShapes, scanlabel = scanLabel)
+        np.savez(fOutput, eigenvals = ws, v0vas = vs, eigenguesses = wsguess, scanvals = scanVals, scanparams = scanParam, params = self.params, profparams = self.profParams, profshapes = self.profShapes, scanlabel = scanLabel, outparams = self.outparams)
         
         if os.path.isfile(outputGrid): # checks whether the csv file of outputs exists already
+            # check whether there are new parameters being saved in the output file --> new headers need to be written
+            with open(outputGrid, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                headers = reader.fieldnames
+                headers = list(headers)    
+                
             with open(outputGrid, 'a', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=csv_columns)
-                writer.writerow(self.params)
+                headercheck = [i for i in csv_columns if i not in headers]
+                headercheck += [i for i in headers if i not in csv_columns]
+                if len(headercheck) > 0:
+                    writer.writeheader()
+                writer.writerow(self.params)  
         else:
             with open(outputGrid, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=csv_columns)
@@ -456,11 +511,11 @@ class Solver(object):
         """
         If run, removes entries which have been removed from Output folder from
         outputs.csv (these are presumed deleted).
-        Currently can't detect/account for if something has been moved.'
+        Currently can't detect/account for if something has been moved.
         """
         
         outputGrid = 'Output/outputs.csv'
-        csv_columns = ['ID', 'filepath', 'R0', 'B0', 'r0', 'D', 'El', 'Tr', 'n', 'MPOL', 'NTOR', 'n0', 'mach', 'beta0', 'qr', 'rs', 'q0', 'nu_n', 'nu_omega', 'nu_q', 'scanlabel', 'scanparams', 'scanvals', 'time']
+        csv_columns = ['ID', 'filepath', 'R0', 'B0', 'r0', 'D', 'El', 'Tr', 'n', 'RationalM', 'MPOL', 'NTOR', 'n0', 'mach', 'beta0', 'qr', 'rs', 'q0', 'nu_n', 'nu_omega', 'nu_q', 'scanlabel', 'scanparams', 'scanvals', 'time']
         
         lines = []
         with open(outputGrid, 'r', newline='') as f:
@@ -486,12 +541,12 @@ class Solver(object):
     def remakeOutputGrid(self):
         
         outputGrid = 'Output/outputs.csv'
-        csv_columns = ['ID', 'filepath', 'R0', 'B0', 'r0', 'D', 'El', 'Tr', 'n', 'MPOL', 'NTOR', 'n0', 'mach', 'beta0', 'qr', 'rs', 'q0', 'nu_n', 'nu_omega', 'nu_q', 'scanlabel', 'scanparams', 'scanvals', 'time']
+        csv_columns = ['ID', 'filepath', 'R0', 'B0', 'r0', 'D', 'El', 'Tr', 'n', 'RationalM', 'MPOL', 'NTOR', 'n0', 'mach', 'beta0', 'qr', 'rs', 'q0', 'nu_n', 'nu_omega', 'nu_q', 'scanlabel', 'scanparams', 'scanvals', 'time']
         
-        npz_files = [f for f in os.listdir('Output') if f.endswith('.npz')]
+        npz_files = [f for f in os.listdir('Output/IK') if f.endswith('.npz')]
         
         for file in npz_files:
-            data = f'Output/{file}'
+            data = f'Output/IK/{file}'
             data = np.load(data, allow_pickle = True)
             outparams = data['outparams'].item()
             
@@ -499,6 +554,7 @@ class Solver(object):
                 writer = csv.DictWriter(f, csv_columns)
                 writer.writeheader()
                 writer.writerow(outparams)
+                
     
     def getData(self, dataFile = None, runSol = True):
         """
@@ -506,7 +562,7 @@ class Solver(object):
         
         Parameters:
             runSol - Determines whether or not a scan is performed when calling 
-            getData function
+            getData function. If false, this is just a file reader
             dataFile - If not running the solver, takes a file as input to load 
             the data. dataFile should include file location.
         """
