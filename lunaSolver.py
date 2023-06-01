@@ -285,6 +285,7 @@ class Solver(object):
         eq.Omega = -eq.Omega
     	
     	#eq.plot(stab.grid, show=True)
+        mu0 = 4.*np.pi*1.0E-07
     	
         V0_Va = np.sqrt(eq.M02*eq.mu0*eq.P0)/eq.B0
         print ('Parameters at the magnetic axis:')

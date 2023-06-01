@@ -24,7 +24,7 @@ class Solver(object):
         profiles = ['density_T', 'density_P', 'temperature', 'rotation']
         self.params = {'profile':'density_T','R0':10., 'B0':1., 'r0':1., 'D':0., 'El':0., 'Tr':0., 'n':-1, 'RationalM':1,'MPOL':15, 'NTOR':0}
         self.profParams = {'rstep':0.5, 'drstep':0.15, 'n0':1, 'nu_n':2, 'mach':0.0, 'beta0':0.05, 'qr':1., 'rs':0.3, 'q0':0.938, 'qs':None, 'nu_q':2.}
-        
+
         self.initialisers = {'RunVMEC': True, 'RunStab': True, 'ToPlot': False, 'Peakedness':True}
         
         self.in_filepath = 'Input'
@@ -445,8 +445,9 @@ class Solver(object):
                 stab.Solution.PlotEigenVectors(eq, PlotDerivatives=False)
     		#------------------------------------------------------------------
             
-        
+
         return EV, V0_Va, EV_guess
+      
     
     def doScan(self):
         
